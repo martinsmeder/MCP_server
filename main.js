@@ -6,56 +6,6 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-function createServer(name, file) {
-  return {
-    name,
-    client: new Client({ name: "mcp-client", version: "1.0.0" }),
-    transport: new StdioClientTransport({
-      command: process.execPath,
-      args: [new URL(file, import.meta.url).pathname],
-      stderr: "inherit",
-      env: process.env,
-    }),
-  };
-}
-
-async function connectServers() {
-  const servers = [
-    createServer("hello", "./hello-world.js"),
-    createServer("weather", "./weather.js"),
-  ];
-
-  for (const server of servers) {
-    await server.client.connect(server.transport);
-  }
-
-  return servers;
-}
-
-async function getTools(servers) {
-  const tools = [];
-  const toolMap = new Map();
-
-  for (const server of servers) {
-    const { tools: serverTools } = await server.client.listTools();
-
-    for (const tool of serverTools) {
-      const name = `${server.name}__${tool.name}`;
-      toolMap.set(name, { client: server.client, tool: tool.name });
-      tools.push({
-        type: "function",
-        function: {
-          name,
-          description: tool.description ?? tool.name,
-          parameters: tool.inputSchema,
-        },
-      });
-    }
-  }
-
-  return { tools, toolMap };
-}
-
 function getText(result) {
   if ("toolResult" in result) return JSON.stringify(result.toolResult);
   return result.content
@@ -63,69 +13,49 @@ function getText(result) {
     .join("\n");
 }
 
-async function runAgent(tools, toolMap) {
-  const messages = [
-    {
-      role: "system",
-      content:
-        "You are a small assistant that must use the available tools when they are relevant.",
-    },
-    {
-      role: "user",
-      content:
-        "Use the tools to say hello to Martin, then find the current temperature in Tokyo. Return a short final answer with both results.",
-    },
-  ];
-
-  for (let i = 0; i < 6; i += 1) {
-    const response = await groq.chat.completions.create({
-      model: "qwen/qwen3-32b",
-      messages,
-      tools,
-      tool_choice: "auto",
-      parallel_tool_calls: true,
-    });
-
-    const message = response.choices[0]?.message;
-    if (!message) throw new Error("Groq returned no message.");
-
-    messages.push(message);
-
-    if (!message.tool_calls?.length) {
-      console.log(message.content ?? "");
-      return;
-    }
-
-    for (const call of message.tool_calls) {
-      const tool = toolMap.get(call.function.name);
-      const result = await tool.client.callTool({
-        name: tool.tool,
-        arguments: JSON.parse(call.function.arguments || "{}"),
-      });
-
-      messages.push({
-        role: "tool",
-        tool_call_id: call.id,
-        content: getText(result),
-      });
-    }
-  }
-
-  throw new Error("Exceeded tool loop limit.");
-}
-
 async function main() {
-  if (!process.env.GROQ_API_KEY) {
-    throw new Error("Missing GROQ_API_KEY.");
-  }
-
-  const servers = await connectServers();
+  const client = new Client({ name: "weather-client", version: "1.0.0" });
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [new URL("./weather.js", import.meta.url).pathname],
+    stderr: "inherit",
+    env: process.env,
+  });
 
   try {
-    const { tools, toolMap } = await getTools(servers);
-    await runAgent(tools, toolMap);
+    await client.connect(transport);
+
+    const { tools } = await client.listTools();
+    const response = await groq.chat.completions.create({
+      model: "qwen/qwen3-32b",
+      messages: [
+        {
+          role: "user",
+          content: "Use the weather tool to get the current weather in Tokyo.",
+        },
+      ],
+      tools: tools.map((tool) => ({
+        type: "function",
+        function: {
+          name: tool.name,
+          description: tool.description ?? tool.name,
+          parameters: tool.inputSchema,
+        },
+      })),
+      tool_choice: "required",
+    });
+
+    const call = response.choices[0]?.message?.tool_calls?.[0];
+    if (!call) throw new Error("Groq did not call a tool.");
+
+    const result = await client.callTool({
+      name: call.function.name,
+      arguments: JSON.parse(call.function.arguments || "{}"),
+    });
+
+    console.log(getText(result));
   } finally {
-    await Promise.allSettled(servers.map((server) => server.transport.close()));
+    await transport.close();
   }
 }
 

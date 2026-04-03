@@ -3,8 +3,8 @@
 Minimal Groq + MCP example in JavaScript.
 
 Files:
-- `main.js`: Groq client that discovers tools from local MCP servers, lets the model call them, and prints the final answer.
-- `hello-world.js`: MCP server with a `say_hello` tool.
+
+- `main.js`: Groq client that connects to the weather MCP, exposes its tools to the model, and prints the final answer.
 - `weather.js`: MCP server with `get_coordinates` and `get_weather`.
 
 Run:
