@@ -17,15 +17,6 @@ server.registerTool(
     const data = await response.json();
     const result = data?.results?.[0];
 
-    if (!result) {
-      return {
-        content: [
-          { type: "text", text: `No coordinates found for city: ${city}` },
-        ],
-        isError: true,
-      };
-    }
-
     const { latitude, longitude, name, country } = result;
     return {
       content: [
@@ -51,13 +42,6 @@ server.registerTool(
     const data = await response.json();
     const temperature = data?.current?.temperature_2m;
     const unit = data?.current_units?.temperature_2m;
-
-    if (temperature == null || !unit) {
-      return {
-        content: [{ type: "text", text: "Weather data is unavailable." }],
-        isError: true,
-      };
-    }
 
     return {
       content: [
