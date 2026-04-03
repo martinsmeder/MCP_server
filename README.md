@@ -2,8 +2,13 @@
 
 An MCP server written in JavaScript.
 
-Test via the inspector:
+### Why use MCP?
 
-```bash
+- To enable your AI to easily access tools, prompts and other resources across multiple projects
+
+### Test via the inspector:
+
+```bas
+npm install
 npx @modelcontextprotocol/inspector node weather.js
 ```
