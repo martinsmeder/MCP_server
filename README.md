@@ -1,16 +1,9 @@
 # MCP_server
 
-Minimal Groq + MCP example in JavaScript.
+An MCP server written in JavaScript.
 
-Files:
-
-- `main.js`: Groq client that connects to the weather MCP, exposes its tools to the model, and prints the final answer.
-- `weather.js`: MCP server with `get_coordinates` and `get_weather`.
-
-Run:
+Test via the inspector:
 
 ```bash
-node main.js
+npx @modelcontextprotocol/inspector node weather.js
 ```
-
-Requires `GROQ_API_KEY` in `.env`.
